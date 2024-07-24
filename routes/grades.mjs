@@ -3,7 +3,16 @@ import db from "../db/conn.mjs";
 import { ObjectId } from "mongodb";
 
 const router = express.Router();
+//Create indexs and validate grades collection:
+async () =>{
+  let collection = await db.collection("grades");
+  //Create indexes
+  
+  await collection.createIndex({ class_id: 1});
+  await collection.createIndex({ learner_id: 1});
+  await collection.createIndex({ learner_id: 1, class_id: 1});
 
+};
 // Create a single grade entry
 router.post("/", async (req, res) => {
   let collection = await db.collection("grades");
