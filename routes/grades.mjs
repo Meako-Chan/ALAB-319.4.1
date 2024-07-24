@@ -133,4 +133,183 @@ router.delete("/class/:id", async (req, res) => {
   else res.send(result).status(200);
 });
 
+router.get("/stats", async (req, res) => {
+  let collection = await db.collection("grades");
+  let stats = await collection.aggregate([
+    {
+      $unwind: { path: "$scores" },
+    },
+    {
+      $group: {
+        _id: { learner_id:"$learner_id", class_id:"$class_id"},
+        quiz: {
+          $push: {
+            $cond: {
+              if: { $eq: ["$scores.type", "quiz"] },
+              then: "$scores.score",
+              else: "$$REMOVE",
+            },
+          },
+        },
+        exam: {
+          $push: {
+            $cond: {
+              if: { $eq: ["$scores.type", "exam"] },
+              then: "$scores.score",
+              else: "$$REMOVE",
+            },
+          },
+        },
+        homework: {
+          $push: {
+            $cond: {
+              if: { $eq: ["$scores.type", "homework"] },
+              then: "$scores.score",
+              else: "$$REMOVE",
+            },
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        learner_id: "$_id.learner_id",
+        class_id: "$_id.class_id",
+        weightedAvg: {
+          $sum: [
+            { $multiply: [{ $avg: "$exam" }, 0.5] },
+            { $multiply: [{ $avg: "$quiz" }, 0.3] },
+            { $multiply: [{ $avg: "$homework" }, 0.2] },
+          ],
+        },
+      },
+    },
+    {
+      $group: {
+        _id: "$learner_id",
+        avgScore: {$avg: "$weightedAvg"}
+      },
+    },
+    {
+      $facet: {
+        totalLearners: [{ $count: "total"}],
+        above70: [
+          {$match: {avgScore: {$gt: 70}} },
+          {$count: "count"},
+        ],
+      },
+    },
+    {
+      $project: {
+        totalLearners: {$arrayElemAt: ["$totalLearners.total", 0]},
+        above70: {$arrayElemAt: ["$above70.count", 0]},
+        percentageAbove70: {
+          $multiply: [
+            { $divide: [{ $arrayElemAt: ["$above70.count", 0] }, { $arrayElemAt: ["$totalLearners.total", 0] }] },
+            100,
+          ],
+        }
+      }
+    }
+  ])
+  .toArray();
+
+  let result = stats[0];
+
+  if (!result) res.send("Not found").status(404);
+  else res.send(result).status(200);
+})
+
+router.get("/stats/:id", async (req, res) => {
+  let collection = await db.collection("grades");
+  const classId = Number(req.params.id);
+
+  let stats = await collection.aggregate([
+    {
+      $match: {class_id: classId }
+    },
+    {
+      $unwind: { path: "$scores" },
+    },
+    {
+      $group: {
+        _id: { learner_id:"$learner_id", class_id:"$class_id"},
+        quiz: {
+          $push: {
+            $cond: {
+              if: { $eq: ["$scores.type", "quiz"] },
+              then: "$scores.score",
+              else: "$$REMOVE",
+            },
+          },
+        },
+        exam: {
+          $push: {
+            $cond: {
+              if: { $eq: ["$scores.type", "exam"] },
+              then: "$scores.score",
+              else: "$$REMOVE",
+            },
+          },
+        },
+        homework: {
+          $push: {
+            $cond: {
+              if: { $eq: ["$scores.type", "homework"] },
+              then: "$scores.score",
+              else: "$$REMOVE",
+            },
+          },
+        },
+      },
+    },
+    {
+      $project: {
+        learner_id: "$_id.learner_id",
+        class_id: "$_id.class_id",
+        weightedAvg: {
+          $sum: [
+            { $multiply: [{ $avg: "$exam" }, 0.5] },
+            { $multiply: [{ $avg: "$quiz" }, 0.3] },
+            { $multiply: [{ $avg: "$homework" }, 0.2] },
+          ],
+        },
+      },
+    },
+    {
+      $group: {
+        _id: "$learner_id",
+        avgScore: {$avg: "$weightedAvg"}
+      },
+    },
+    {
+      $facet: {
+        totalLearners: [{ $count: "total"}],
+        above70: [
+          {$match: {avgScore: {$gt: 70}} },
+          {$count: "count"},
+        ],
+      },
+    },
+    {
+      $project: {
+        totalLearners: {$arrayElemAt: ["$totalLearners.total", 0]},
+        above70: {$arrayElemAt: ["$above70.count", 0]},
+        percentageAbove70: {
+          $multiply: [
+            { $divide: [{ $arrayElemAt: ["$above70.count", 0] }, { $arrayElemAt: ["$totalLearners.total", 0] }] },
+            100,
+          ],
+        }
+      }
+    }
+  ])
+  .toArray();
+
+  let result = stats[0];
+
+  if (!result) res.send("Not found").status(404);
+  else res.send(result).status(200);
+});
+
 export default router;
